@@ -1,7 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <sstream>
-#include <cctype>  // Para isalpha
+#include <queue>
 using namespace std;
 
 class PilhaAutomato{
@@ -21,8 +21,6 @@ public:
         if(!pilha.empty()){
             //cout<<"Desempilhado: "<<pilha.back()<<endl;
             pilha.pop_back();
-        }else{
-            cout<<"Erro: Pilha vazia!"<<endl;
         }
     }
 
@@ -30,9 +28,12 @@ public:
         if(!pilha.empty()){
             return pilha.back();
         }else{
-            //cout<<"Pilha vazia!"<<endl;
             return '\0';
         }
+    }
+
+    PilhaAutomato(const PilhaAutomato& outra) {
+        pilha = outra.pilha; //Copia da pilha para usar nos caminhos alternativos
     }
 
     void exibirPilha(){
@@ -48,20 +49,21 @@ public:
     }
 };
 
-bool verificaPalavra(const string& palavra, const vector<vector<string>>& transicoes, const vector<int>& estados_finais){
+struct Configuracao{
+    int estado;
+    int posicao; // Posição na palavra
     PilhaAutomato pilha;
-    int estado_atual = 0;
-    int pos = 0;
+};
 
-    while(true){
-        string simbolo_lido;
-        if(pos < palavra.size()){
-            simbolo_lido = string(1, palavra[pos]);
-        }else{
-            simbolo_lido = "&";
-        }
+bool verificaPalavra(const string& palavra, const vector<vector<string>>& transicoes, const vector<int>& estados_finais){
+    queue<Configuracao> fila;
+    fila.push({0, 0, PilhaAutomato()}); //Começa no estado 0, posição 0, pilha com Z
+  
+    while(!fila.empty()){
+        Configuracao atual = fila.front();
+        fila.pop();
 
-        bool transicaoEncontrada = false;
+        string simbolo_lido=(atual.posicao<palavra.size())? string(1, palavra[atual.posicao]) : "&";
 
         for(const auto& transicao : transicoes){
             int estadoOrigem = stoi(transicao[0]);
@@ -71,40 +73,35 @@ bool verificaPalavra(const string& palavra, const vector<vector<string>>& transi
             int proximoEstado = stoi(transicao[4]);
 
             bool leituraOk = (leitura == simbolo_lido || leitura == "&");
-            bool topoOk = (topoPilha == string(1, pilha.topo()) || topoPilha == "&");
+            bool topoOk = (topoPilha == string(1, atual.pilha.topo()) || topoPilha == "&");
 
-            if(estado_atual == estadoOrigem && leituraOk && topoOk){
-                if(topoPilha != "&"){
-                    pilha.pop();
+            if(atual.estado == estadoOrigem && leituraOk && topoOk){
+                Configuracao nova = atual;
+                nova.estado = proximoEstado;
+
+                if(topoPilha != "&" && !nova.pilha.estaVazia()){
+                    nova.pilha.pop();
                 }
 
                 if(empilhar != "&"){
                     for(int i = empilhar.size() - 1; i >= 0; i--){
-                        pilha.push(empilhar[i]);
+                         nova.pilha.push(empilhar[i]);
+                    }
+                }
+                
+                if(leitura != "&"){
+                    nova.posicao++;
+                }
+
+                //Se consumir toda a palavra e estiver num estado final
+                if(nova.posicao >= palavra.size()){
+                    for(int final : estados_finais){
+                        if(nova.estado == final) 
+                            return true;
                     }
                 }
 
-                estado_atual = proximoEstado;
-
-                if(leitura != "&"){
-                    pos++;
-                }
-
-                transicaoEncontrada = true;
-                break;
-            }
-        }
-
-        if(!transicaoEncontrada){
-            break;
-        }
-
-        // Verifica se chegou ao fim da palavra e está em estado de aceitação
-        if(pos >= palavra.size()){
-            for(int estado_final : estados_finais){
-                if(estado_atual == estado_final){
-                    return true;
-                }
+                fila.push(nova);
             }
         }
     }
@@ -116,9 +113,6 @@ int main(){
     int qtd_estados, loop;
     cin >> qtd_estados >> loop;
     cin.ignore();
-        
-    if(qtd_estados>0)// ajustando a quantidade de estados para começar em 0
-        qtd_estados--;
 
     vector<vector<string>> transicoes;
 
@@ -137,20 +131,11 @@ int main(){
         transicoes.push_back(partes);
     }
 
-/*
-    cout << "\nTransições armazenadas:" << endl; // Exibir todas as transições lidas
-    for(const auto& transicao : transicoes){
-        for(const auto& elemento : transicao){
-            cout << elemento << " ";
-        }
-        cout << endl;
-    }
-*/
-
     int num_estados_finais; //recebendo os estados finais
     cin>>num_estados_finais;
     cin.ignore();
 
+   
     vector<int> estados_finais;
     string linha_finais;
     getline(cin, linha_finais);
@@ -164,21 +149,15 @@ int main(){
    
     vector<string> palavras;
     string linha;
+    
     while(true){ //loop para receber as palavras
         //cout <<"digite a palavra: "<< endl;
         getline(cin, linha);
         if(linha == "*")
             break;
-
         palavras.push_back(linha);
     }
 
-/*    
-    cout<<"vetor de palavras: "<< endl; //exibindo o vertor com as palavras para analizar
-    for(const string& p : palavras){
-            cout << p << endl;
-    }
-*/
     for(const string& p : palavras){
         
         if(verificaPalavra(p, transicoes, estados_finais)){
